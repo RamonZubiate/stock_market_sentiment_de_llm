@@ -4,6 +4,7 @@ import Sidebar from "./components/Sidebar";
 import Stocks from "./pages/Stocks";
 import Home from "./pages/Home";
 import Insights from "./pages/Insights";
+import Stock from "./pages/Stock";
 
 function App() {
   return (
@@ -14,6 +15,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/stocks" element={<Stocks />} />
+            <Route path="/stock/:symbol" element={<Stock />} />
             <Route path="/insights" element={<Insights />} />
           </Routes>
         </div>

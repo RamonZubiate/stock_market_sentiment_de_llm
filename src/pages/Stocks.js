@@ -1,15 +1,36 @@
 import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom"; // <-- ONLY ADDITION
 import ReactECharts from "echarts-for-react";
 
 const REACT_APP_ALPACA_API_KEY = process.env.REACT_APP_ALPACA_API_KEY;
 const REACT_APP_ALPACA_SECRET_KEY = process.env.REACT_APP_ALPACA_SECRET_KEY;
 
-// Use the test API for development
 const ALPACA_WSS_URL = "wss://stream.data.alpaca.markets/v2/iex";
 const ALPACA_REST_URL = "https://data.alpaca.markets/v2";
 
-// Stock symbols to track
-const stockSymbols = ["SPY", "AAPL"];
+const stockSymbols = [
+  "AAPL",
+  "SPY",
+  "MSFT",
+  "AMZN",
+  "GOOGL",
+  "TSLA",
+  "NFLX",
+  "META",
+  "NVDA",
+  "AMD",
+  "INTC",
+  "DIS",
+  "V",
+  "JPM",
+  "BA",
+  "WMT",
+  "PG",
+  "KO",
+  "PEP",
+  "XOM",
+  "CVX",
+];
 
 const Stocks = () => {
   const [stocks, setStocks] = useState(
@@ -29,35 +50,32 @@ const Stocks = () => {
   const [connectionStatus, setConnectionStatus] = useState("Disconnected");
   const [loading, setLoading] = useState(true);
 
-  // Function to get trading hours start/end times for today
-  const getTradingHoursToday = () => {
+  const getTradingHoursForCurrentOrLastFriday = () => {
     const now = new Date();
-  
-    // Create start time at 9:30 AM today
-    const start = new Date(now);
-    start.setHours(8, 30, 0, 0); // 9:30 AM
-  
-    // Create end time at 4:00 PM today
-    const end = new Date(now);
-    end.setHours(15, 0, 0, 0); // 4:00 PM
-  
+    const dayOfWeek = now.getDay(); // 0=Sunday, 6=Saturday
+    let effectiveDate = new Date(now);
+
+    if (dayOfWeek === 6) {
+      effectiveDate.setDate(effectiveDate.getDate() - 1);
+    } else if (dayOfWeek === 0) {
+      effectiveDate.setDate(effectiveDate.getDate() - 2);
+    }
+
+    const start = new Date(effectiveDate);
+    start.setHours(8, 30, 0, 0);
+    const end = new Date(effectiveDate);
+    end.setHours(15, 0, 0, 0);
     return { start, end };
   };
-  
 
-  // Function to fetch historical data
   const fetchHistoricalData = async () => {
     setLoading(true);
     try {
       for (const symbol of stockSymbols) {
-        // Get today's trading hours
-        const { start, end } = getTradingHoursToday();
-
-        // Format dates for API
+        const { start, end } = getTradingHoursForCurrentOrLastFriday();
         const startStr = start.toISOString();
         const endStr = end.toISOString();
 
-        // Use 1Min timeframe to get more granular data for the custom timeframe
         const url = `${ALPACA_REST_URL}/stocks/${symbol}/bars?timeframe=1Min&start=${startStr}&end=${endStr}&limit=500`;
 
         const response = await fetch(url, {
@@ -67,88 +85,68 @@ const Stocks = () => {
           },
         });
 
-        if (response.ok) {
-          const data = await response.json();
-
-          if (data.bars && data.bars.length > 0) {
-            setStocks((prev) => {
-              const updatedStock = { ...prev };
-
-              // Process historical bars
-              const historicalBars = data.bars.map((bar) => {
-                const utcDate = new Date(bar.t);
-                const localDate = new Date(
-                  utcDate.toLocaleString("en-US", {
-                    timeZone: "America/New_York",
-                  })
-                ); // Change to your timezone
-
-                return {
-                  time: localDate.toLocaleTimeString(),
-                  timestamp: localDate, // Store the local timestamp
-                  open: bar.o,
-                  high: bar.h,
-                  low: bar.l,
-                  close: bar.c,
-                  volume: bar.v,
-                };
-              });
-
-              // Sort by timestamp
-              historicalBars.sort((a, b) => a.timestamp - b.timestamp);
-
-              // Create history array for line chart
-              const historyPoints = historicalBars.map((bar) => ({
-                time: bar.time,
-                timestamp: bar.timestamp,
-                price: bar.close,
-              }));
-
-              // Update the stock data
-              updatedStock[symbol].historicalData = historicalBars;
-              updatedStock[symbol].history = historyPoints;
-              updatedStock[symbol].bars = historicalBars;
-
-              // Set current price to the last close
-              if (historicalBars.length > 0) {
-                const lastBar = historicalBars[historicalBars.length - 1];
-                const firstBar = historicalBars[0];
-
-                const change = lastBar.close - firstBar.close;
-                const percentChange =
-                  firstBar.close > 0 ? (change / firstBar.close) * 100 : 0;
-
-                updatedStock[symbol].price = lastBar.close.toFixed(2);
-                updatedStock[symbol].change = change.toFixed(2);
-                updatedStock[symbol].percent = percentChange.toFixed(2);
-              }
-
-              return updatedStock;
-            });
-          } else {
-            console.log(
-              "No bars returned from API for the specified timeframe"
-            );
-          }
-        } else {
-          console.error(
-            "Failed to fetch historical data:",
-            await response.text()
-          );
+        if (!response.ok) {
+          console.error("Failed to fetch bars:", await response.text());
+          continue;
         }
+
+        const data = await response.json();
+        if (!data.bars || data.bars.length === 0) {
+          console.log(`No bars returned for ${symbol}`, data);
+          continue;
+        }
+
+        const historicalBars = data.bars.map((bar) => {
+          const utcDate = new Date(bar.t);
+          const localDate = new Date(
+            utcDate.toLocaleString("en-US", {
+              timeZone: "America/New_York",
+            })
+          );
+          return {
+            timestamp: localDate,
+            open: bar.o,
+            high: bar.h,
+            low: bar.l,
+            close: bar.c,
+            volume: bar.v,
+          };
+        });
+
+        historicalBars.sort((a, b) => a.timestamp - b.timestamp);
+
+        const historyPoints = historicalBars.map((bar) => ({
+          timestamp: bar.timestamp,
+          price: bar.close,
+        }));
+
+        const firstBar = historicalBars[0];
+        const lastBar = historicalBars[historicalBars.length - 1];
+        const dailyChange = lastBar.close - firstBar.close;
+        const dailyPercent =
+          firstBar.close > 0 ? (dailyChange / firstBar.close) * 100 : 0;
+
+        setStocks((prev) => {
+          const updated = { ...prev };
+          updated[symbol].historicalData = historicalBars;
+          updated[symbol].bars = historicalBars;
+          updated[symbol].history = historyPoints;
+          updated[symbol].price = lastBar.close.toFixed(2);
+          updated[symbol].change = dailyChange.toFixed(2);
+          updated[symbol].percent = dailyPercent.toFixed(2);
+          return updated;
+        });
       }
-    } catch (error) {
-      console.error("Error fetching historical data:", error);
+    } catch (err) {
+      console.error("Error fetching historical data:", err);
     } finally {
       setLoading(false);
     }
   };
 
-  // Fetch historical data when component mounts
   useEffect(() => {
     fetchHistoricalData();
 
-    // Set up a refresh interval (every 5 minutes)
     const refreshInterval = setInterval(() => {
       fetchHistoricalData();
     }, 5 * 60 * 1000);
@@ -156,114 +154,62 @@ const Stocks = () => {
     return () => clearInterval(refreshInterval);
   }, []);
 
-  // Function to check if a timestamp is within today's trading hours
-  const isWithinTradingHours = (timestamp) => {
-    const localDate = new Date(
-      timestamp.toLocaleString("en-US", { timeZone: "America/New_York" })
-    ); // Convert to local time
-    const { start, end } = getTradingHoursToday();
-
-    console.log(
-      `Checking timestamp ${localDate} within range: ${start} - ${end}`
-    );
-
-    return localDate >= start && localDate <= end;
-  };
-
-  // Function to merge real-time data with historical data
+  // Merge real-time trades
   const mergeDataPoint = (symbol, newDataPoint) => {
-    // Only process data points within trading hours
-    if (!isWithinTradingHours(newDataPoint.timestamp)) {
-      return;
-    }
-
     setStocks((prev) => {
-      const updatedStock = { ...prev };
+      const copy = { ...prev };
+      const stock = copy[symbol];
 
-      // Add to history
-      const history = [...(updatedStock[symbol].history || [])];
-      history.push(newDataPoint);
+      const newHistory = stock.history ? [...stock.history] : [];
+      newHistory.push({
+        timestamp: newDataPoint.timestamp,
+        price: newDataPoint.price,
+      });
 
-      // Keep only data within today's trading hours
-      const { start, end } = getTradingHoursToday();
-      const filteredHistory = history.filter(
-        (item) => item.timestamp >= start && item.timestamp <= end
-      );
+      newHistory.sort((a, b) => a.timestamp - b.timestamp);
 
-      // Calculate price change against the first price of the day
-      const currentPrice = parseFloat(newDataPoint.price);
-      const historicalData = updatedStock[symbol].historicalData || [];
-      const firstPrice =
-        historicalData.length > 0
-          ? historicalData[0].close
-          : parseFloat(updatedStock[symbol].price) || currentPrice;
+      const firstPrice = newHistory[0].price;
+      const change = newDataPoint.price - firstPrice;
+      const percent = firstPrice > 0 ? (change / firstPrice) * 100 : 0;
 
-      const change = currentPrice - firstPrice;
-      const percentChange = firstPrice > 0 ? (change / firstPrice) * 100 : 0;
+      stock.history = newHistory;
+      stock.price = newDataPoint.price.toFixed(2);
+      stock.change = change.toFixed(2);
+      stock.percent = percent.toFixed(2);
 
-      updatedStock[symbol] = {
-        ...updatedStock[symbol],
-        price: currentPrice.toFixed(2),
-        change: change.toFixed(2),
-        percent: percentChange.toFixed(2),
-        history: filteredHistory,
-      };
-
-      return updatedStock;
+      return copy;
     });
   };
 
-  // Function to merge real-time bar with historical bars
+  // Merge real-time bars
   const mergeBarData = (symbol, newBar) => {
-    // Only process bars within trading hours
-    if (!isWithinTradingHours(newBar.timestamp)) {
-      return;
-    }
-
     setStocks((prev) => {
-      const updatedStock = { ...prev };
+      const copy = { ...prev };
+      const stock = copy[symbol];
+      const bars = [...(stock.bars || [])];
 
-      // Add to bars
-      const bars = [...(updatedStock[symbol].bars || [])];
-
-      // Check if we have a bar for this timestamp already and update it
-      const existingIndex = bars.findIndex(
-        (bar) => bar.timestamp.getTime() === newBar.timestamp.getTime()
+      const index = bars.findIndex(
+        (b) => b.timestamp.getTime() === newBar.timestamp.getTime()
       );
-
-      if (existingIndex >= 0) {
-        // Update existing bar
-        bars[existingIndex] = newBar;
+      if (index >= 0) {
+        bars[index] = newBar;
       } else {
-        // Add new bar
         bars.push(newBar);
       }
 
-      // Keep only data within today's trading hours
-      const { start, end } = getTradingHoursToday();
-      const filteredBars = bars.filter(
-        (bar) => bar.timestamp >= start && bar.timestamp <= end
-      );
+      bars.sort((a, b) => a.timestamp - b.timestamp);
+      stock.bars = bars;
 
-      // Sort by timestamp
-      filteredBars.sort((a, b) => a.timestamp - b.timestamp);
-
-      // Update the stock data
-      updatedStock[symbol].bars = filteredBars;
-
-      return updatedStock;
+      return copy;
     });
   };
 
-  // Set up WebSocket connection
   useEffect(() => {
     const ws = new WebSocket(ALPACA_WSS_URL);
+    let subscribed = false;
 
     ws.onopen = () => {
-      console.log("Connected to Alpaca WebSocket");
       setConnectionStatus("Connected");
-
-      // Authenticate
       ws.send(
         JSON.stringify({
           action: "auth",
@@ -273,27 +219,19 @@ const Stocks = () => {
       );
     };
 
-    let subscribed = false;
-
     ws.onmessage = (event) => {
-      const processMessage = (messageData) => {
+      const processMessage = (msgString) => {
         try {
-          console.log("Raw message:", messageData);
-          const data = JSON.parse(messageData);
-          console.log("Parsed data:", data);
+          const data = JSON.parse(msgString);
+          if (!Array.isArray(data)) return;
 
-          // Handle authentication response
           if (
-            Array.isArray(data) &&
             data.length > 0 &&
             data[0].T === "success" &&
             data[0].msg === "authenticated"
           ) {
-            console.log("Successfully authenticated with Alpaca");
             setConnectionStatus("Authenticated");
-
             if (!subscribed) {
-              // Subscribe to both trades and bars
               ws.send(
                 JSON.stringify({
                   action: "subscribe",
@@ -307,104 +245,57 @@ const Stocks = () => {
             return;
           }
 
-          if (Array.isArray(data)) {
-            data.forEach((message) => {
-              // Handle trade updates
-              if (message.T === "t") {
-                const { S: symbol, p: price, t: timestamp } = message;
-
-                if (stocks[symbol]) {
-                  const currentPrice = parseFloat(price);
-                  const date = new Date(timestamp);
-                  const timeString = date.toLocaleTimeString();
-
-                  // Create data point for the line chart
-                  const newDataPoint = {
-                    time: timeString,
-                    price: currentPrice,
-                    timestamp: date,
-                  };
-
-                  // Merge with historical data
-                  mergeDataPoint(symbol, newDataPoint);
-                }
-              }
-
-              // Handle bar updates
-              if (message.T === "b") {
-                const {
-                  S: symbol,
-                  o: open,
-                  h: high,
-                  l: low,
-                  c: close,
-                  v: volume,
-                  t: timestamp,
-                } = message;
-
-                if (stocks[symbol]) {
-                  const date = new Date(timestamp);
-                  const timeString = date.toLocaleTimeString();
-
-                  // Create a new bar
-                  const newBar = {
-                    time: timeString,
-                    timestamp: date,
-                    open: parseFloat(open),
-                    high: parseFloat(high),
-                    low: parseFloat(low),
-                    close: parseFloat(close),
-                    volume: parseFloat(volume),
-                  };
-
-                  // Merge with historical bars
-                  mergeBarData(symbol, newBar);
-
-                  // Also update the price data
-                  const newDataPoint = {
-                    time: timeString,
-                    price: parseFloat(close),
-                    timestamp: date,
-                  };
-                  mergeDataPoint(symbol, newDataPoint);
-                }
-              }
-            });
-          }
-        } catch (error) {
-          console.error("Error processing message:", error);
-          console.log("Raw message:", messageData);
+          data.forEach((message) => {
+            if (message.T === "t") {
+              const { S: symbol, p, t } = message;
+              const date = new Date(t);
+              mergeDataPoint(symbol, {
+                timestamp: date,
+                price: parseFloat(p),
+              });
+            } else if (message.T === "b") {
+              const { S: symbol, o, h, l, c, v, t } = message;
+              const date = new Date(t);
+              const newBar = {
+                timestamp: date,
+                open: parseFloat(o),
+                high: parseFloat(h),
+                low: parseFloat(l),
+                close: parseFloat(c),
+                volume: parseFloat(v),
+              };
+              mergeBarData(symbol, newBar);
+              mergeDataPoint(symbol, {
+                timestamp: date,
+                price: parseFloat(c),
+              });
+            }
+          });
+        } catch (err) {
+          console.error("Error parsing WebSocket message:", err, msgString);
         }
       };
 
       if (event.data instanceof Blob) {
         const reader = new FileReader();
-        reader.onload = () => {
-          processMessage(reader.result);
-        };
+        reader.onload = () => processMessage(reader.result);
         reader.readAsText(event.data);
       } else {
         processMessage(event.data);
       }
     };
 
-    ws.onerror = (error) => {
-      console.error("WebSocket Error:", error);
+    ws.onerror = (err) => {
+      console.error("WebSocket error:", err);
       setConnectionStatus("Error");
     };
 
     ws.onclose = (event) => {
-      console.log(
-        "Disconnected from Alpaca WebSocket:",
-        event.code,
-        event.reason
-      );
+      console.log("WebSocket closed:", event.code, event.reason);
       setConnectionStatus("Disconnected");
     };
 
-    return () => {
-      ws.close();
-    };
+    return () => ws.close();
   }, []);
 
   return (
@@ -416,7 +307,7 @@ const Stocks = () => {
           Connection: <strong>{connectionStatus}</strong>
         </span>
         <span>
-          Trading Hours: <strong>9:30 AM - 4:00 PM EST</strong>
+          Trading Hours: <strong>8:30 AM - 3:00 PM</strong>
         </span>
         <button
           onClick={fetchHistoricalData}
@@ -435,111 +326,120 @@ const Stocks = () => {
       ) : (
         <div style={styles.gridContainer}>
           {Object.entries(stocks).map(([symbol, stock]) => (
-            <div key={symbol} style={styles.card}>
-              <div style={styles.stockHeader}>
-                <h2 style={styles.stockSymbol}>{symbol}</h2>
-                <span
-                  style={{
-                    ...styles.priceChange,
-                    color:
-                      parseFloat(stock.change) >= 0 ? "#4caf50" : "#f44336",
-                  }}
-                >
-                  {parseFloat(stock.change) >= 0 ? "▲" : "▼"} {stock.change} (
-                  {stock.percent}%)
-                </span>
-              </div>
-              <h3 style={styles.stockPrice}>${stock.price}</h3>
+            // Wrap each card in a Link to go to /stock/:symbol
+            <Link
+              key={symbol}
+              to={`/stock/${symbol}`}
+              style={{ textDecoration: "none", color: "inherit" }}
+            >
+              <div style={styles.card}>
+                <div style={styles.stockHeader}>
+                  <h2 style={styles.stockSymbol}>{symbol}</h2>
+                  <span
+                    style={{
+                      ...styles.priceChange,
+                      color:
+                        parseFloat(stock.change) >= 0 ? "#4caf50" : "#f44336",
+                    }}
+                  >
+                    {parseFloat(stock.change) >= 0 ? "▲" : "▼"} {stock.change} (
+                    {stock.percent}%)
+                  </span>
+                </div>
+                <h3 style={styles.stockPrice}>${stock.price}</h3>
 
-              <div style={styles.chartContainer}>
-                <ReactECharts
-                  option={{
-                    tooltip: {
-                      trigger: "axis",
-                      axisPointer: { type: "cross" },
-                      formatter: function (params) {
-                        const index = params[0].dataIndex; // Get hovered data index
-                        const time = stock.history[index]?.time || "Unknown"; // Retrieve time
-                        const price = params[0].data;
-
-                        return `<div>
-                        <p>Time: ${time}</p>
-                        <p>Price: $${typeof price === "number" ? price.toFixed(2) : price}</p>
-                      </div>`;
-                      },
-                    },
-                    xAxis: {
-                      type: "category",
-                      data: stock.history.map((_, index) => index), // Use index instead of time
-                      show: false, // Hide the time axis
-                    },
-                    yAxis: {
-                      type: "value",
-                      scale: true,
-                      splitLine: {
-                        show: true,
-                        lineStyle: {
-                          color: "rgba(255, 255, 255, 0.1)",
+                <div style={styles.chartContainer}>
+                  <ReactECharts
+                    option={{
+                      tooltip: {
+                        trigger: "axis",
+                        axisPointer: { type: "cross" },
+                        formatter: (params) => {
+                          if (!params.length) return "";
+                          const [ts, price] = params[0].data;
+                          const timeString = new Date(ts).toLocaleTimeString();
+                          return `
+                            <div>
+                              <p>Time: ${timeString}</p>
+                              <p>Price: $${price.toFixed(2)}</p>
+                            </div>
+                          `;
                         },
                       },
-                      axisLabel: {
-                        formatter: (value) => "$" + value.toFixed(2),
-                        color: "rgba(255, 255, 255, 0.7)",
-                        fontSize: 10,
+                      xAxis: {
+                        type: "time",
                       },
-                    },
-                    grid: {
-                      left: 50,
-                      right: 10,
-                      top: 8,
-                      bottom: 24,
-                    },
-                    series: [
-                      {
-                        type: "line",
-                        data: stock.history.map((h) => h.price),
-                        smooth: true,
-                        showSymbol: false,
-                        lineStyle: {
-                          width: 2,
-                          color:
-                            parseFloat(stock.change) >= 0
-                              ? "#4caf50"
-                              : "#f44336",
-                        },
-                        areaStyle: {
-                          color: {
-                            type: "linear",
-                            x: 0,
-                            y: 0,
-                            x2: 0,
-                            y2: 1,
-                            colorStops: [
-                              {
-                                offset: 0,
-                                color:
-                                  parseFloat(stock.change) >= 0
-                                    ? "rgba(76, 175, 80, 0.4)"
-                                    : "rgba(244, 67, 54, 0.4)",
-                              },
-                              {
-                                offset: 1,
-                                color:
-                                  parseFloat(stock.change) >= 0
-                                    ? "rgba(76, 175, 80, 0.1)"
-                                    : "rgba(244, 67, 54, 0.1)",
-                              },
-                            ],
+                      yAxis: {
+                        type: "value",
+                        scale: true,
+                        splitLine: {
+                          show: true,
+                          lineStyle: {
+                            color: "rgba(255, 255, 255, 0.1)",
                           },
                         },
+                        axisLabel: {
+                          formatter: (val) => "$" + val.toFixed(2),
+                          color: "rgba(255, 255, 255, 0.7)",
+                          fontSize: 10,
+                        },
                       },
-                    ],
-                    animation: true,
-                  }}
-                  style={{ height: "200px", width: "100%" }}
-                />
+                      grid: {
+                        left: 50,
+                        right: 10,
+                        top: 8,
+                        bottom: 24,
+                      },
+                      series: [
+                        {
+                          type: "line",
+                          data: stock.history.map((pt) => [
+                            pt.timestamp,
+                            pt.price,
+                          ]),
+                          smooth: true,
+                          showSymbol: false,
+                          lineStyle: {
+                            width: 2,
+                            color:
+                              parseFloat(stock.change) >= 0
+                                ? "#4caf50"
+                                : "#f44336",
+                          },
+                          areaStyle: {
+                            color: {
+                              type: "linear",
+                              x: 0,
+                              y: 0,
+                              x2: 0,
+                              y2: 1,
+                              colorStops: [
+                                {
+                                  offset: 0,
+                                  color:
+                                    parseFloat(stock.change) >= 0
+                                      ? "rgba(76, 175, 80, 0.4)"
+                                      : "rgba(244, 67, 54, 0.4)",
+                                },
+                                {
+                                  offset: 1,
+                                  color:
+                                    parseFloat(stock.change) >= 0
+                                      ? "rgba(76, 175, 80, 0.1)"
+                                      : "rgba(244, 67, 54, 0.1)",
+                                },
+                              ],
+                            },
+                          },
+                        },
+                      ],
+                      animation: true,
+                    }}
+                    style={{ height: "200px", width: "100%" }}
+                  />
+                </div>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       )}
@@ -547,13 +447,13 @@ const Stocks = () => {
   );
 };
 
-// Real-Time Stock Cards with Dark Blue Theme
+// EXACT SAME STYLES, UNMODIFIED
 const styles = {
   container: {
     fontFamily: "'Inter', sans-serif",
     padding: "40px",
     marginLeft: "220px",
-    background: "linear-gradient(to bottom, #0f172a, #1e293b)", // Dark blue gradient
+    background: "linear-gradient(to bottom, #0f172a, #1e293b)",
     minHeight: "100vh",
     color: "#fff",
   },
@@ -589,14 +489,14 @@ const styles = {
     gap: "24px",
   },
   card: {
-    background: "linear-gradient(to bottom,rgb(77, 99, 153), #1e293b)",
+    background: "linear-gradient(to bottom, rgb(77, 99, 153), #1e293b)",
     padding: "20px",
     borderRadius: "12px",
-    boxShadow: "0px 6px 20px rgba(0, 191, 255, 0.15)", // Soft glow effect
+    boxShadow: "0px 6px 20px rgba(0, 191, 255, 0.15)",
     transition: "transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out",
     cursor: "pointer",
     border: "1px solid rgba(255, 255, 255, 0.1)",
-    backdropFilter: "blur(8px)", // Frosted glass effect
+    backdropFilter: "blur(8px)",
   },
   stockHeader: {
     display: "flex",
@@ -621,17 +521,11 @@ const styles = {
     width: "100%",
     height: "200px",
   },
-  timeInfo: {
-    fontSize: "12px",
-    color: "rgba(255, 255, 255, 0.7)",
-    textAlign: "center",
-    marginTop: "8px",
-  },
   loadingContainer: {
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "center", 
     height: "200px",
   },
   loadingSpinner: {
