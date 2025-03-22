@@ -51,12 +51,42 @@ export default function Stock() {
 
   const [connectionStatus, setConnectionStatus] = useState("Disconnected");
   const [loading, setLoading] = useState(true);
+  
+  // News states
   const [news, setNews] = useState([]);
+  const [newsLoading, setNewsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [selectedTicker, setSelectedTicker] = useState(null);
+  const [sortOption, setSortOption] = useState("relevance");
+
+  // Score articles for relevance
+  const scoreArticle = (article) => {
+    let score = 0;
+    
+    // Check article freshness
+    const publishDate = new Date(article.published_utc);
+    const now = new Date();
+    const daysDifference = (now - publishDate) / (1000 * 60 * 60 * 24);
+    
+    if (daysDifference < 1) score += 15;
+    else if (daysDifference < 2) score += 10;
+    else if (daysDifference < 3) score += 5;
+    else if (daysDifference > 7) return -1;
+    
+    // Boost articles mentioning multiple tickers
+    if (article.tickers && article.tickers.length > 0) {
+      score += Math.min(article.tickers.length * 2, 10);
+    }
+    
+    return score;
+  };
 
   // Fetch daily data using the 1Day timeframe (for volume, high, low, open, and price)
   const fetchDailyData = async () => {
     try {
-      // Use limit=5 to be safe; we then take the latest available daily bar
       const url = `${ALPACA_REST_URL}/stocks/${routeSymbol}/bars?timeframe=1Day&limit=5`;
       const response = await fetch(url, {
         headers: {
@@ -182,10 +212,140 @@ export default function Stock() {
     });
   };
 
-  // Set up WebSocket for real-time trades and bars
+  // Fetch news for a specific ticker
+  const fetchNewsForTicker = async (tickerSymbol = null) => {
+    try {
+      setNewsLoading(true);
+      
+      // Build the URL based on whether we're fetching for a specific ticker
+      let url = `https://api.polygon.io/v2/reference/news?limit=20&order=desc&sort=published_utc&apiKey=${REACT_APP_POLYGON_API_KEY}`;
+      
+      // Add ticker parameter if a ticker is specified
+      if (tickerSymbol) {
+        url += `&ticker=${tickerSymbol}`;
+      } else if (routeSymbol) {
+        // Use the route symbol if no specific ticker is provided
+        url += `&ticker=${routeSymbol}`;
+      }
+      
+      const res = await fetch(url);
+      
+      if (!res.ok) {
+        throw new Error(`API returned status: ${res.status}`);
+      }
+      
+      const data = await res.json();
+
+      if (data.results && data.results.length > 0) {
+        const scoredArticles = data.results.map(article => ({
+          ...article,
+          _score: scoreArticle(article)
+        }));
+        
+        // Filter relevant articles with positive scores
+        const filtered = scoredArticles
+          .filter(article => article._score > 0)
+          .sort((a, b) => b._score - a._score);
+
+        setNews(filtered.slice(0, 20));
+      } else {
+        setNews([]);
+      }
+    } catch (err) {
+      console.error("Error fetching news:", err);
+    } finally {
+      setNewsLoading(false);
+    }
+  };
+
+  // Search for ticker symbols
+  const searchTickers = async (query) => {
+    if (!query || query.length < 1) {
+      setSearchResults([]);
+      return;
+    }
+    
+    setSearchLoading(true);
+    
+    try {
+      const url = `https://api.polygon.io/v3/reference/tickers?search=${query}&active=true&sort=ticker&order=asc&limit=10&apiKey=${REACT_APP_POLYGON_API_KEY}`;
+      const response = await fetch(url);
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.results && data.results.length > 0) {
+          setSearchResults(data.results);
+        } else {
+          setSearchResults([]);
+        }
+      } else {
+        setSearchResults([]);
+      }
+    } catch (error) {
+      console.error("Error searching tickers:", error);
+      setSearchResults([]);
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  // Handle ticker selection for news
+  const getNewsByTicker = (ticker) => {
+    if (!ticker) {
+      setSelectedTicker(null);
+      fetchNewsForTicker(routeSymbol);
+      return;
+    }
+    
+    setSelectedTicker(ticker);
+    fetchNewsForTicker(ticker.ticker);
+  };
+
+  // Format date for display
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffMins < 60) return `${diffMins} min${diffMins !== 1 ? 's' : ''} ago`;
+    if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
+    return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
+  };
+
+  // Sort news based on user selection
+  const sortNews = (newsArray) => {
+    switch (sortOption) {
+      case "newest":
+        return [...newsArray].sort((a, b) => 
+          new Date(b.published_utc) - new Date(a.published_utc)
+        );
+      case "oldest":
+        return [...newsArray].sort((a, b) => 
+          new Date(a.published_utc) - new Date(b.published_utc)
+        );
+      case "relevance":
+        return [...newsArray].sort((a, b) => b._score - a._score);
+      case "tickers":
+        return [...newsArray].sort((a, b) => 
+          (b.tickers?.length || 0) - (a.tickers?.length || 0)
+        );
+      case "source":
+        return [...newsArray].sort((a, b) => 
+          (a.publisher?.name || "").localeCompare(b.publisher?.name || "")
+        );
+      default:
+        return newsArray;
+    }
+  };
+
+  // Set up WebSocket and API requests when component mounts
   useEffect(() => {
     fetchDailyData();
     fetchHistoricalData();
+    fetchNewsForTicker(routeSymbol);
 
     const ws = new WebSocket(ALPACA_WSS_URL);
     let subscribed = false;
@@ -276,58 +436,27 @@ export default function Stock() {
     return () => ws.close();
   }, [routeSymbol]);
 
-  // Fetch news using Polygon.io client-js library
-  const fetchPolygonNews = async () => {
-    try {
-      const response = await polygonClient.reference.tickerNews({
-        ticker: routeSymbol.toUpperCase(),
-        order: "desc", // Most recent first
-        limit: 5,
-        sort: "published_utc"
-      });
-      
-      if (!response.results || response.results.length === 0) {
-        console.log(`No news found for ${routeSymbol}`);
-        return;
-      }
-
-      // Filter articles: Only include those with a valid published date and where tickers include the symbol
-      const filteredArticles = response.results.filter((article) => {
-        // Check published date validity
-        const pubDate = new Date(article.published_utc);
-        if (pubDate.toString() === "Invalid Date") return false;
-        // Ensure the symbol appears in the tickers array (case-insensitive)
-        if (article.tickers && article.tickers.length > 0) {
-          return article.tickers.some(
-            (ticker) => ticker.toUpperCase() === routeSymbol.toUpperCase()
-          );
-        }
-        return false;
-      });
-
-      setNews(filteredArticles);
-    } catch (err) {
-      console.error("Error fetching Polygon news:", err);
-    }
-  };
-
+  // Handle search term changes
   useEffect(() => {
-    fetchPolygonNews();
-  }, [routeSymbol]);
+    const handler = setTimeout(() => {
+      searchTickers(searchTerm);
+    }, 300);
+    
+    return () => clearTimeout(handler);
+  }, [searchTerm]);
 
-  // Basic styling
   const styles = {
     container: {
       fontFamily: "'Inter', sans-serif",
       color: "#fff",
       background: "linear-gradient(to bottom right, #0f172a, #1e293b 80%)",
       minHeight: "100vh",
-      padding: "50px",
+      padding: "30px",
     },
     title: {
       fontSize: "32px",
       fontWeight: "600",
-      marginBottom: "10px",
+      marginBottom: "20px",
       textAlign: "center",
       letterSpacing: "1px",
     },
@@ -347,29 +476,196 @@ export default function Stock() {
       justifyContent: "center",
     },
     newsSection: {
-      marginTop: "30px",
+      marginTop: "40px",
     },
-    newsItem: {
+    newsHeader: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: "20px",
+      flexWrap: "wrap",
+      gap: "16px",
+    },
+    newsTitle: { fontSize: "24px", fontWeight: "bold" },
+    searchContainer: {
+      position: "relative",
+      marginBottom: "20px",
+      width: "100%",
+    },
+    searchInput: {
+      width: "100%",
+      padding: "12px 16px",
       backgroundColor: "#1e293b",
+      border: "1px solid #475569",
       borderRadius: "8px",
-      padding: "16px",
-      marginBottom: "10px",
-      boxShadow: "0 2px 8px rgba(0, 0, 0, 0.3)",
+      color: "white",
+      fontSize: "16px",
     },
-    newsItemTitle: {
+    searchResults: {
+      position: "absolute",
+      top: "100%",
+      left: 0,
+      right: 0,
+      backgroundColor: "#1e293b",
+      border: "1px solid #475569",
+      borderRadius: "0 0 8px 8px",
+      zIndex: 10,
+      maxHeight: "300px",
+      overflowY: "auto",
+      display: searchFocused && searchResults.length > 0 ? "block" : "none",
+    },
+    searchResultItem: {
+      padding: "12px 16px",
+      borderBottom: "1px solid #334155",
+      cursor: "pointer",
+    },
+    ticker: { fontWeight: "bold", color: "#4c9aff" },
+    companyName: { fontSize: "14px", color: "#94a3b8", marginTop: "4px" },
+    selectedTicker: {
+      display: "flex",
+      alignItems: "center",
+      backgroundColor: "#2563eb",
+      borderRadius: "8px",
+      padding: "8px 16px",
+      marginBottom: "20px",
+    },
+    actions: {
+      display: "flex",
+      gap: "12px",
+      alignItems: "center",
+      flexWrap: "wrap",
+    },
+    sortContainer: {
+      display: "flex",
+      alignItems: "center",
+      gap: "8px",
+    },
+    sortLabel: { fontSize: "14px", color: "#94a3b8" },
+    select: {
+      backgroundColor: "#1e293b",
+      color: "white",
+      border: "1px solid #475569",
+      borderRadius: "6px",
+      padding: "7px 12px",
+      fontSize: "14px",
+    },
+    refreshButton: {
+      backgroundColor: "#3b82f6",
+      color: "white",
+      border: "none",
+      padding: "8px 16px",
+      borderRadius: "8px",
+      cursor: "pointer",
+      fontWeight: "bold",
+    },
+    clearButton: {
+      marginLeft: "auto",
+      backgroundColor: "transparent",
+      border: "none",
+      color: "white",
+      fontSize: "14px",
+      cursor: "pointer",
+    },
+    grid: {
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
+      gap: "24px",
+    },
+    card: {
+      backgroundColor: "#1e293b",
+      borderRadius: "16px",
+      overflow: "hidden",
+      boxShadow: "0 6px 18px rgba(0,0,0,0.4)",
+      display: "flex",
+      flexDirection: "column",
+      transition: "transform 0.3s, box-shadow 0.3s",
+      height: "100%",
+    },
+    image: {
+      width: "100%",
+      height: "180px",
+      objectFit: "cover",
+    },
+    noImage: {
+      width: "100%",
+      height: "80px",
+      backgroundColor: "#334155",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      color: "#94a3b8",
+    },
+    content: {
+      padding: "20px",
+      display: "flex",
+      flexDirection: "column",
+      flexGrow: 1,
+    },
+    headline: {
       fontSize: "18px",
+      fontWeight: "bold",
       color: "#4c9aff",
-      marginBottom: "8px",
+      marginBottom: "10px",
+      textDecoration: "none",
     },
+    metadata: {
+      fontSize: "12px",
+      color: "#94a3b8",
+      marginBottom: "12px",
+      display: "flex",
+      justifyContent: "space-between",
+    },
+    description: {
+      fontSize: "14px",
+      color: "#cbd5e1",
+      flexGrow: 1,
+      marginBottom: "15px",
+    },
+    tags: {
+      display: "flex",
+      flexWrap: "wrap",
+      gap: "6px",
+      marginTop: "auto",
+    },
+    tickerTag: {
+      backgroundColor: "rgba(96, 165, 250, 0.2)",
+      color: "#60a5fa",
+      padding: "4px 8px",
+      borderRadius: "4px",
+      fontSize: "12px",
+      cursor: "pointer",
+    },
+    selectedTickerTag: {
+      backgroundColor: "rgba(96, 165, 250, 0.5)",
+      color: "white",
+      padding: "4px 8px",
+      borderRadius: "4px",
+      fontSize: "12px",
+      fontWeight: "bold",
+      cursor: "pointer",
+    },
+    keyword: {
+      backgroundColor: "rgba(148, 163, 184, 0.2)",
+      color: "#94a3b8",
+      padding: "4px 8px",
+      borderRadius: "4px",
+      fontSize: "12px",
+    },
+    loading: { textAlign: "center", padding: "40px" },
   };
+
+  // Sort the news articles
+  const sortedNews = sortNews(news);
 
   return (
     <div style={styles.container}>
       <h1 style={styles.title}>Details for {stock.symbol}</h1>
+      
       {loading ? (
         <p>Loading historical data...</p>
       ) : (
         <>
+          {/* Stock price and chart section */}
           <div style={styles.detailBox}>
             <h2>{stock.symbol}</h2>
             <p style={{ color: parseFloat(stock.change) >= 0 ? "#4caf50" : "#f44336" }}>
@@ -377,7 +673,8 @@ export default function Stock() {
               {stock.percent.toFixed(2)}%)
             </p>
             <h1>${stock.price.toFixed(2)}</h1>
-            {/* Mini line chart */}
+            
+            {/* Stock price chart */}
             <ReactECharts
               option={{
                 tooltip: {
@@ -387,12 +684,7 @@ export default function Stock() {
                     if (!params.length) return "";
                     const [ts, price] = params[0].data;
                     const timeString = new Date(ts).toLocaleTimeString();
-                    return `
-                      <div>
-                        <p>Time: ${timeString}</p>
-                        <p>Price: $${price.toFixed(2)}</p>
-                      </div>
-                    `;
+                    return `<div><p>Time: ${timeString}</p><p>Price: $${price.toFixed(2)}</p></div>`;
                   },
                 },
                 xAxis: { type: "time" },
@@ -403,37 +695,29 @@ export default function Stock() {
                   axisLabel: { formatter: (val) => "$" + val.toFixed(2), color: "rgba(255,255,255,0.7)", fontSize: 10 },
                 },
                 grid: { left: 50, right: 10, top: 8, bottom: 24 },
-                series: [
-                  {
-                    type: "line",
-                    data: stock.history.map((pt) => [pt.timestamp, pt.price]),
-                    smooth: true,
-                    showSymbol: false,
-                    lineStyle: {
-                      width: 2,
-                      color: parseFloat(stock.change) >= 0 ? "#4caf50" : "#f44336",
-                    },
-                    areaStyle: {
-                      color: {
-                        type: "linear",
-                        x: 0,
-                        y: 0,
-                        x2: 0,
-                        y2: 1,
-                        colorStops: [
-                          { offset: 0, color: parseFloat(stock.change) >= 0 ? "rgba(76, 175, 80, 0.4)" : "rgba(244, 67, 54, 0.4)" },
-                          { offset: 1, color: parseFloat(stock.change) >= 0 ? "rgba(76, 175, 80, 0.1)" : "rgba(244, 67, 54, 0.1)" },
-                        ],
-                      },
+                series: [{
+                  type: "line",
+                  data: stock.history.map((pt) => [pt.timestamp, pt.price]),
+                  smooth: true,
+                  showSymbol: false,
+                  lineStyle: { width: 2, color: parseFloat(stock.change) >= 0 ? "#4caf50" : "#f44336" },
+                  areaStyle: {
+                    color: {
+                      type: "linear", x: 0, y: 0, x2: 0, y2: 1,
+                      colorStops: [
+                        { offset: 0, color: parseFloat(stock.change) >= 0 ? "rgba(76, 175, 80, 0.4)" : "rgba(244, 67, 54, 0.4)" },
+                        { offset: 1, color: parseFloat(stock.change) >= 0 ? "rgba(76, 175, 80, 0.1)" : "rgba(244, 67, 54, 0.1)" },
+                      ],
                     },
                   },
-                ],
+                }],
                 animation: true,
               }}
               style={{ height: "200px", width: "100%" }}
             />
           </div>
 
+          {/* Stock details section */}
           <div style={styles.row}>
             <div style={styles.detailBox}>
               <h3>Volume</h3>
@@ -453,26 +737,172 @@ export default function Stock() {
             </div>
           </div>
 
+          {/* News section */}
           <div style={styles.newsSection}>
-            <h2>Recent News for {stock.symbol}</h2>
-            {news.length === 0 && <p>No recent news found.</p>}
-            {news.map((article) => (
-              <div key={article.id} style={styles.newsItem}>
-                <a
-                  href={article.article_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={styles.newsItemTitle}
+            <div style={styles.newsHeader}>
+              <h2 style={styles.newsTitle}>Recent News for {stock.symbol}</h2>
+              <div style={styles.actions}>
+                <div style={styles.sortContainer}>
+                  <span style={styles.sortLabel}>Sort by:</span>
+                  <select style={styles.select} value={sortOption} onChange={(e) => setSortOption(e.target.value)}>
+                    <option value="relevance">Relevance</option>
+                    <option value="newest">Newest First</option>
+                    <option value="oldest">Oldest First</option>
+                    <option value="tickers">Most Tickers</option>
+                    <option value="source">Source Name</option>
+                  </select>
+                </div>
+                <button 
+                  style={styles.refreshButton}
+                  onClick={() => {
+                    setSelectedTicker(null);
+                    fetchNewsForTicker(routeSymbol);
+                  }}
+                  disabled={newsLoading}
                 >
-                  {article.title}
-                </a>
-                <p>{article.description}</p>
-                <p style={{ fontSize: "12px" }}>
-                  Source: {article.publisher.name} –{" "}
-                  {new Date(article.published_utc).toLocaleString()}
-                </p>
+                  {newsLoading ? "Refreshing..." : "Refresh News"}
+                </button>
               </div>
-            ))}
+            </div>
+            
+            {/* Search for other tickers */}
+            <div style={styles.searchContainer}>
+              <input
+                type="text"
+                placeholder="Search for a stock ticker (e.g. AAPL, TSLA, MSFT)..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                style={styles.searchInput}
+                onFocus={() => setSearchFocused(true)}
+                onBlur={() => setTimeout(() => setSearchFocused(false), 200)}
+              />
+              
+              <div style={styles.searchResults}>
+                {searchLoading ? (
+                  <div style={{padding: "12px 16px", textAlign: "center"}}>Searching...</div>
+                ) : searchResults.length === 0 && searchTerm.length > 0 ? (
+                  <div style={{padding: "12px 16px", textAlign: "center"}}>No matches found</div>
+                ) : (
+                  searchResults.map((result) => (
+                    <div 
+                      key={result.ticker} 
+                      style={styles.searchResultItem}
+                      onClick={() => {
+                        getNewsByTicker(result);
+                        setSearchTerm("");
+                        setSearchResults([]);
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#334155"}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = ""}
+                    >
+                      <div style={styles.ticker}>{result.ticker}</div>
+                      <div style={styles.companyName}>{result.name}</div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+            
+            {/* Selected ticker indicator */}
+            {selectedTicker && selectedTicker.ticker !== routeSymbol && (
+              <div style={styles.selectedTicker}>
+                <span>Showing news for: {selectedTicker.ticker} - {selectedTicker.name}</span>
+                <button style={styles.clearButton} onClick={() => getNewsByTicker(null)}>
+                  Return to {routeSymbol} News
+                </button>
+              </div>
+            )}
+
+{newsLoading ? (
+              <div style={styles.loading}>Loading news...</div>
+            ) : news.length === 0 ? (
+              <p>No relevant news found. Try refreshing later.</p>
+            ) : (
+              <div style={styles.grid}>
+                {sortedNews.map((article) => (
+                  <div 
+                    key={article.id} 
+                    style={styles.card}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = "translateY(-5px)";
+                      e.currentTarget.style.boxShadow = "0 12px 24px rgba(0,0,0,0.5)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = "";
+                      e.currentTarget.style.boxShadow = "";
+                    }}
+                  >
+                    {article.image_url ? (
+                      <img 
+                        src={article.image_url} 
+                        alt={article.title || "News"} 
+                        style={styles.image}
+                        onError={(e) => {
+                          e.target.style.display = "none";
+                          e.target.parentNode.insertBefore(
+                            Object.assign(document.createElement("div"), {
+                              textContent: "Image Unavailable",
+                              className: "noImage",
+                              style: Object.entries(styles.noImage).reduce((acc, [key, value]) => {
+                                acc[key] = value;
+                                return acc;
+                              }, {})
+                            }),
+                            e.target.nextSibling
+                          );
+                        }}
+                      />
+                    ) : (
+                      <div style={styles.noImage}>No Image Available</div>
+                    )}
+
+                    <div style={styles.content}>
+                      <a
+                        href={article.article_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={styles.headline}
+                      >
+                        {article.title}
+                      </a>
+
+                      <div style={styles.metadata}>
+                        <span>{article.publisher?.name || "Unknown Source"}</span>
+                        <span>{formatDate(article.published_utc)}</span>
+                      </div>
+
+                      <div style={styles.description}>
+                        {article.description || "No description available."}
+                      </div>
+
+                      <div style={styles.tags}>
+                        {article.tickers?.slice(0, 5).map(ticker => (
+                          <span 
+                            key={ticker} 
+                            style={selectedTicker && ticker === selectedTicker.ticker ? 
+                              styles.selectedTickerTag : styles.tickerTag}
+                            onClick={() => {
+                              const tickerObj = { ticker: ticker, name: ticker };
+                              getNewsByTicker(tickerObj);
+                            }}
+                          >
+                            {ticker}
+                          </span>
+                        ))}
+                        
+                        {article.tickers?.length > 5 && (
+                          <span style={styles.tickerTag}>+{article.tickers.length - 5} more</span>
+                        )}
+                        
+                        {article.keywords?.slice(0, 3).map(keyword => (
+                          <span key={keyword} style={styles.keyword}>{keyword}</span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </>
       )}

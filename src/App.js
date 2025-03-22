@@ -5,6 +5,7 @@ import Stocks from "./pages/Stocks";
 import Home from "./pages/Home";
 import Insights from "./pages/Insights";
 import Stock from "./pages/Stock";
+import News from "./pages/News";
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
             <Route path="/stocks" element={<Stocks />} />
             <Route path="/stock/:symbol" element={<Stock />} />
             <Route path="/insights" element={<Insights />} />
+            <Route path="/news" element={<News />} />
           </Routes>
         </div>
       </div>
