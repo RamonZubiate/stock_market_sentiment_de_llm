@@ -459,6 +459,9 @@ export default function MarketNews() {
       display: "grid",
       gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
       gap: "24px",
+      transform: "translateZ(0)",
+      willChange: "transform",
+      backfaceVisibility: "hidden",
     },
     card: {
       backgroundColor: "#1e293b",
@@ -469,7 +472,11 @@ export default function MarketNews() {
       flexDirection: "column",
       transition: "transform 0.3s ease, box-shadow 0.3s ease",
       height: "100%",
+      transform: "translateZ(0)",
+      willChange: "transform",
+      backfaceVisibility: "hidden",
     },
+
     cardHover: {
       transform: "translateY(-5px)",
       boxShadow: "0 12px 24px rgba(0,0,0,0.5)",

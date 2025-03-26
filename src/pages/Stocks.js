@@ -447,7 +447,6 @@ const Stocks = () => {
   );
 };
 
-// EXACT SAME STYLES, UNMODIFIED
 const styles = {
   container: {
     fontFamily: "'Inter', sans-serif",

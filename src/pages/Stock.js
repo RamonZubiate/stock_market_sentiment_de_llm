@@ -55,10 +55,6 @@ export default function Stock() {
   // News states
   const [news, setNews] = useState([]);
   const [newsLoading, setNewsLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [searchResults, setSearchResults] = useState([]);
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [searchFocused, setSearchFocused] = useState(false);
   const [selectedTicker, setSelectedTicker] = useState(null);
   const [sortOption, setSortOption] = useState("relevance");
 
@@ -258,37 +254,6 @@ export default function Stock() {
     }
   };
 
-  // Search for ticker symbols
-  const searchTickers = async (query) => {
-    if (!query || query.length < 1) {
-      setSearchResults([]);
-      return;
-    }
-    
-    setSearchLoading(true);
-    
-    try {
-      const url = `https://api.polygon.io/v3/reference/tickers?search=${query}&active=true&sort=ticker&order=asc&limit=10&apiKey=${REACT_APP_POLYGON_API_KEY}`;
-      const response = await fetch(url);
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data.results && data.results.length > 0) {
-          setSearchResults(data.results);
-        } else {
-          setSearchResults([]);
-        }
-      } else {
-        setSearchResults([]);
-      }
-    } catch (error) {
-      console.error("Error searching tickers:", error);
-      setSearchResults([]);
-    } finally {
-      setSearchLoading(false);
-    }
-  };
-
   // Handle ticker selection for news
   const getNewsByTicker = (ticker) => {
     if (!ticker) {
@@ -436,14 +401,6 @@ export default function Stock() {
     return () => ws.close();
   }, [routeSymbol]);
 
-  // Handle search term changes
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      searchTickers(searchTerm);
-    }, 300);
-    
-    return () => clearTimeout(handler);
-  }, [searchTerm]);
 
   const styles = {
     container: {
@@ -487,38 +444,6 @@ export default function Stock() {
       gap: "16px",
     },
     newsTitle: { fontSize: "24px", fontWeight: "bold" },
-    searchContainer: {
-      position: "relative",
-      marginBottom: "20px",
-      width: "100%",
-    },
-    searchInput: {
-      width: "100%",
-      padding: "12px 16px",
-      backgroundColor: "#1e293b",
-      border: "1px solid #475569",
-      borderRadius: "8px",
-      color: "white",
-      fontSize: "16px",
-    },
-    searchResults: {
-      position: "absolute",
-      top: "100%",
-      left: 0,
-      right: 0,
-      backgroundColor: "#1e293b",
-      border: "1px solid #475569",
-      borderRadius: "0 0 8px 8px",
-      zIndex: 10,
-      maxHeight: "300px",
-      overflowY: "auto",
-      display: searchFocused && searchResults.length > 0 ? "block" : "none",
-    },
-    searchResultItem: {
-      padding: "12px 16px",
-      borderBottom: "1px solid #334155",
-      cursor: "pointer",
-    },
     ticker: { fontWeight: "bold", color: "#4c9aff" },
     companyName: { fontSize: "14px", color: "#94a3b8", marginTop: "4px" },
     selectedTicker: {
@@ -764,45 +689,7 @@ export default function Stock() {
                 </button>
               </div>
             </div>
-            
-            {/* Search for other tickers */}
-            <div style={styles.searchContainer}>
-              <input
-                type="text"
-                placeholder="Search for a stock ticker (e.g. AAPL, TSLA, MSFT)..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                style={styles.searchInput}
-                onFocus={() => setSearchFocused(true)}
-                onBlur={() => setTimeout(() => setSearchFocused(false), 200)}
-              />
-              
-              <div style={styles.searchResults}>
-                {searchLoading ? (
-                  <div style={{padding: "12px 16px", textAlign: "center"}}>Searching...</div>
-                ) : searchResults.length === 0 && searchTerm.length > 0 ? (
-                  <div style={{padding: "12px 16px", textAlign: "center"}}>No matches found</div>
-                ) : (
-                  searchResults.map((result) => (
-                    <div 
-                      key={result.ticker} 
-                      style={styles.searchResultItem}
-                      onClick={() => {
-                        getNewsByTicker(result);
-                        setSearchTerm("");
-                        setSearchResults([]);
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#334155"}
-                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = ""}
-                    >
-                      <div style={styles.ticker}>{result.ticker}</div>
-                      <div style={styles.companyName}>{result.name}</div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-            
+             
             {/* Selected ticker indicator */}
             {selectedTicker && selectedTicker.ticker !== routeSymbol && (
               <div style={styles.selectedTicker}>
@@ -819,7 +706,7 @@ export default function Stock() {
               <p>No relevant news found. Try refreshing later.</p>
             ) : (
               <div style={styles.grid}>
-                {sortedNews.map((article) => (
+                {sortedNews.slice(0, 6).map((article) => (
                   <div 
                     key={article.id} 
                     style={styles.card}
