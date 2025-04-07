@@ -1,0 +1,5 @@
+dagster
+dagit
+firebase-admin
+openai
+python-dotenv

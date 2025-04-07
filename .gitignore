@@ -23,4 +23,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-/server/market*
+.tmp*
+
+/trend_analysis_dagster/market*
+__pycache__
