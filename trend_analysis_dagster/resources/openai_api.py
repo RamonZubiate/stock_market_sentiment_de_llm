@@ -1,7 +1,6 @@
-# trend_analysis_dagster/resources/openai_api.py
 import os
 import logging
-import openai
+from openai import OpenAI
 import json
 from dagster import resource, Field, String
 
@@ -21,7 +20,7 @@ class OpenAIResource:
         self.api_key = api_key or os.getenv('OPENAI_API_KEY')
         if not self.api_key:
             logger.warning("No OpenAI API key provided. Set OPENAI_API_KEY in your .env file.")
-        openai.api_key = self.api_key
+        self.client = OpenAI(api_key=self.api_key)
     
     def get_api_key(self):
         """
@@ -32,34 +31,23 @@ class OpenAIResource:
         """
         return self.api_key
         
-    def generate_completion(self, model, messages, web_search=False, search_context_size="low"):
+    def generate_completion(self, model, messages):
         """
         Generate a completion using the OpenAI API.
         
         Args:
-            model: The OpenAI model to use.
-            messages: The messages to pass to the API.
-            web_search: Whether to enable web search.
-            search_context_size: The size of the search context.
+            model: The OpenAI model to use (e.g., "gpt-4").
+            messages: A list of messages in the chat conversation format.
             
         Returns:
             The API response.
         """
         try:
-            if web_search and "search" in model:
-                logger.info(f"Calling OpenAI API with web search (model: {model})")
-                response = openai.ChatCompletion.create(
-                    model=model,
-                    web_search_options={"search_context_size": search_context_size},
-                    messages=messages
-                )
-            else:
-                logger.info(f"Calling OpenAI API (model: {model})")
-                response = openai.ChatCompletion.create(
-                    model=model,
-                    messages=messages
-                )
-            
+            logger.info(f"Calling OpenAI API with model {model}")
+            response = self.client.chat.completions.create(
+                model=model,
+                messages=messages
+            )
             return response
         except Exception as e:
             logger.error(f"Error calling OpenAI API: {e}")
@@ -76,18 +64,23 @@ class OpenAIResource:
             The extracted JSON content.
         """
         try:
-            content = response.choices[0].message.content
-            logger.info(f"Received response: {content[:100]}...")
+            # Handling the response for ChatCompletion model
+            if hasattr(response, 'choices') and len(response.choices) > 0:
+                content = response.choices[0].message['content']
+                logger.info(f"Received response: {content[:100]}...")
 
-            json_start = content.find('{')
-            json_end = content.rfind('}') + 1
-            
-            if json_start >= 0 and json_end > json_start:
-                json_content = content[json_start:json_end]
-                return json.loads(json_content)
+                # Extract JSON if present
+                json_start = content.find('{')
+                json_end = content.rfind('}') + 1
+                if json_start >= 0 and json_end > json_start:
+                    json_content = content[json_start:json_end]
+                    return json.loads(json_content)
+                else:
+                    logger.error("No valid JSON found in the API response.")
+                    return {"error": "Invalid JSON response"}
             else:
-                logger.error("No valid JSON found in the API response.")
-                return {"error": "Invalid JSON response"}
+                logger.error("API response does not have valid choices.")
+                return {"error": "Invalid API response"}
         except Exception as e:
             logger.error(f"Error extracting JSON from API response: {e}")
             return {"error": str(e)}

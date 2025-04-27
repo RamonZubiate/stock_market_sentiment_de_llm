@@ -21,7 +21,7 @@ class FirestoreResource:
         """
         self.credentials_path = credentials_path or os.getenv(
             'FIREBASE_CREDENTIALS_PATH', 
-            'server/market-sentiment-de-llm-firebase-adminsdk-fbsvc-9b39350acd.json'
+            'trend_analysis_dagster/market-sentiment-de-llm-firebase-adminsdk-fbsvc-9b39350acd.json'
         )
     
     def get_db(self):

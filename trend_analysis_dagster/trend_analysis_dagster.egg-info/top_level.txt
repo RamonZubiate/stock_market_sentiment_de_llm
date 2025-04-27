@@ -1,4 +1,0 @@
-jobs
-ops
-resources
-schedules

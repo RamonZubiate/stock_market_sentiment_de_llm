@@ -1,9 +1,0 @@
-Metadata-Version: 2.4
-Name: trend_analysis_dagster
-Version: 0.0.0
-Requires-Dist: dagster
-Requires-Dist: dagit
-Requires-Dist: firebase-admin
-Requires-Dist: openai
-Requires-Dist: python-dotenv
-Dynamic: requires-dist

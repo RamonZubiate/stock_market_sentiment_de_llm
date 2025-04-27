@@ -175,14 +175,16 @@ def store_daily_analysis(context, daily_clusters, daily_analysis):
             "timestamp": today.isoformat()
         }
         
-        context.resources.firestore.collection('trend_analysis').document(doc_id).set(analysis_data)
+        # Get the Firestore DB client first
+        db = context.resources.firestore.get_db()
+        db.collection('daily_analysis').document(doc_id).set(analysis_data)
         logger.info(f"Stored daily analysis: {doc_id}")
         return True
     except Exception as e:
         logger.error(f"Error storing daily analysis: {e}")
         logger.error(traceback.format_exc())
         return False
-
+    
 @op(
     out={"weekly_clusters": Out()},
     required_resource_keys={"firestore"}
