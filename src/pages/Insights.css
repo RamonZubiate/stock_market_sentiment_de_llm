@@ -1,0 +1,217 @@
+/* General Container Styling */
+.insights-container {
+    padding: 40px 20px; /* Adjust padding */
+    color: #e2e8f0; /* Light gray/blue text */
+    font-family: 'Nunito Sans', sans-serif;
+    background: linear-gradient(160deg, #1e293b, #0f172a); /* slate-800 to slate-900 */
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 35px; /* Space between elements */
+    overflow-x: hidden; /* Prevent horizontal scroll */
+  }
+  
+  /* Main Heading */
+  .insights-main-heading {
+    font-size: 2.8rem; /* Slightly adjusted size */
+    font-weight: 900;
+    margin-bottom: 10px; /* Reduced margin */
+    color: #86efac; /* Tailwind green-300 */
+    text-shadow: 1px 1px 8px rgba(0, 0, 0, 0.5), 0 0 15px rgba(134, 239, 172, 0.3); /* Enhanced shadow */
+    text-align: center;
+  }
+  
+  /* Loading / Error Status */
+  .insights-status {
+    margin-top: 60px;
+    text-align: center;
+    font-size: 1.3rem; /* Slightly smaller */
+    color: #cbd5e1; /* slate-300 */
+    font-style: italic;
+    padding: 20px;
+    background: rgba(30, 41, 59, 0.6); /* Semi-transparent dark bg */
+    border-radius: 15px;
+    width: 80%;
+    max-width: 600px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .insights-loading {
+    color: #a5f3fc; /* cyan-200 */
+  }
+  .insights-error {
+      color: #fda4af; /* rose-300 */
+  }
+  
+  
+  /* General Card Styling */
+  .insights-card {
+    background: rgba(30, 41, 59, 0.9); /* Slightly less transparent background */
+    padding: 30px 35px; /* Adjusted padding */
+    border-radius: 20px;
+    box-shadow: 0 10px 35px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05); /* Added inner highlight */
+    width: 90%;
+    max-width: 850px; /* Slightly reduced max-width */
+    border: 1px solid rgba(51, 65, 85, 0.7); /* Subtle border (slate-700) */
+  }
+  
+  .insights-summary-card {
+      text-align: center;
+  }
+  
+  .insights-date {
+    font-size: 1.8rem; /* Adjusted size */
+    font-weight: 700;
+    margin-bottom: 15px;
+    color: #5eead4; /* teal-300 */
+    text-shadow: 1px 1px 5px rgba(0, 0, 0, 0.2);
+  }
+  
+  .insights-market-move {
+    font-size: 1.3rem;
+    color: #e2e8f0; /* slate-200 */
+    text-shadow: 1px 1px 4px rgba(0, 0, 0, 0.1);
+  }
+  
+  .insights-card-heading {
+    font-size: 1.7rem; /* Adjusted size */
+    font-weight: 800; /* Bolder */
+    margin-bottom: 25px;
+    color: #93c5fd; /* blue-300 */
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid rgba(51, 65, 85, 0.5); /* Separator line */
+    padding-bottom: 10px;
+  }
+  
+  .insights-card-heading svg {
+      font-size: 1.5em; /* Make icon slightly bigger relative to text */
+      margin-right: 12px; /* Increase space */
+  }
+  
+  
+  /* List Styling (Highlights) */
+  .insights-list {
+    list-style: none;
+    padding-left: 0;
+    line-height: 1.9; /* Slightly tighter line height */
+    color: #cbd5e1; /* slate-300 */
+  }
+  
+  .insights-list-item {
+    margin-bottom: 12px;
+    padding-left: 1.8em; /* More space for bullet */
+    position: relative;
+    font-size: 1.1rem; /* Slightly larger list text */
+  }
+  
+  .insights-list-bullet {
+    position: absolute;
+    left: 0;
+    top: 0.3em; /* Adjust vertical alignment */
+    color: #fb923c; /* orange-400 */
+    font-size: 1.1em;
+    font-weight: bold;
+  }
+  
+  /* Reasoning Paragraph */
+  .insights-reasoning {
+    font-size: 1.15rem; /* Slightly larger */
+    line-height: 1.8;
+    color: #cbd5e1; /* slate-300 */
+    text-align: justify; /* Justify text for cleaner look */
+  }
+  
+  /* No Data Placeholder */
+  .insights-no-data {
+    color: #94a3b8; /* slate-400 */
+    font-size: 1.1rem;
+    text-align: center;
+    font-style: italic;
+    padding: 15px 0;
+  }
+  
+  
+  /* --- Keyword Bubble Styling --- */
+  
+  .insights-keywords-card {
+      /* Specific styles if needed */
+  }
+  
+  /* Container for the tag cloud to define its area */
+  .tag-cloud-container {
+    width: 100%;
+    max-width: 600px; /* Max width for the cloud area */
+    height: 280px;     /* Fixed height for the cloud area */
+    margin: 20px auto; /* Center the container */
+    padding: 15px;
+    border-radius: 15px;
+    background: rgba(15, 23, 42, 0.4); /* Slightly darker inner bg (slate-900) */
+    box-shadow: inset 0 2px 10px rgba(0,0,0,0.3);
+    overflow: hidden;  /* Important: Keep bubbles contained */
+    position: relative; /* Needed for potential absolute positioning inside if required */
+    display: flex; /* Use flex to help center the TagCloud component if it's smaller */
+    justify-content: center;
+    align-items: center;
+  }
+  
+  /* Style the react-tag-cloud component itself */
+  .keyword-tag-cloud {
+      width: 100%;
+      height: 100%;
+  }
+  
+  /* Individual Bubble Styling */
+  .tag-bubble {
+    display: inline-block; /* Crucial for layout */
+    padding: 6px 14px;    /* Padding inside the bubble */
+    margin: 6px;         /* Space between bubbles */
+    border-radius: 50px; /* Makes it pill-shaped/circular */
+    color: #e0f2fe;      /* Light blue text (sky-100) */
+    background: linear-gradient(145deg, #3b82f6, #1d4ed8); /* Blue gradient (blue-500 to blue-700) */
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.1);
+    cursor: default;     /* Indicate it's not clickable (unless you add functionality) */
+    font-weight: 600;
+    white-space: nowrap; /* Prevent text wrapping within a bubble */
+    transition: background 0.3s ease, box-shadow 0.3s ease; /* Smooth transition for hover */
+    /* Font size is controlled by the 'size' prop from TagCloud */
+  }
+  
+  /* Hover effect handled by framer-motion 'whileHover' */
+  
+  .insights-keywords-footer {
+    margin-top: 25px;
+    font-size: 1rem;
+    color: #94a3b8; /* slate-400 */
+    text-align: center;
+    font-style: italic;
+  }
+  
+  
+  /* --- Responsive Adjustments --- */
+  @media (max-width: 768px) {
+    .insights-main-heading {
+      font-size: 2.2rem;
+    }
+    .insights-card {
+      width: 95%;
+      padding: 25px 20px;
+    }
+    .insights-card-heading {
+      font-size: 1.5rem;
+    }
+    .insights-list-item,
+    .insights-reasoning {
+      font-size: 1rem;
+    }
+    .tag-cloud-container {
+      height: 240px; /* Smaller height on mobile */
+    }
+     .tag-bubble {
+        padding: 5px 10px;
+        margin: 4px;
+     }
+  }
