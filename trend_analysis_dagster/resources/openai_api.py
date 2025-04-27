@@ -31,7 +31,7 @@ class OpenAIResource:
         """
         return self.api_key
         
-    def generate_completion(self, model, messages):
+    def generate_completion(self, model, web_search_options, messages):
         """
         Generate a completion using the OpenAI API.
         
@@ -43,11 +43,18 @@ class OpenAIResource:
             The API response.
         """
         try:
-            logger.info(f"Calling OpenAI API with model {model}")
-            response = self.client.chat.completions.create(
+            if web_search_options:
+                response = self.client.chat.completions.create(
                 model=model,
+                web_search_options=web_search_options,
                 messages=messages
             )
+            else:
+                logger.info(f"Calling OpenAI API with model {model}")
+                response = self.client.chat.completions.create(
+                    model=model,
+                    messages=messages
+                )
             return response
         except Exception as e:
             logger.error(f"Error calling OpenAI API: {e}")

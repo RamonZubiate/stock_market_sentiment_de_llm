@@ -273,7 +273,7 @@ def get_daily_clustered_trends(context):
         articles = []
         today_articles = []
         yesterday_articles = []
-        
+
         for doc in query.stream():
             article = doc.to_dict()
             article['id'] = doc.id
@@ -608,6 +608,24 @@ def get_daily_clustered_trends(context):
         })
         
         context.log.info(f"Stored {len(trends)} daily trends as '{daily_doc_id}'")
+
+        context.log.info("Updating processed flag for articles...")
+        update_count = 0
+        
+        for article in articles:
+            try:
+                article_id = article.get('id')
+                # Get a reference to the article document
+                article_ref = db.collection('articles').document(article_id)
+                
+                # Update only the processed field to True
+                article_ref.update({'processed': True})
+                update_count += 1
+            except Exception as e:
+                context.log.error(f"Error updating processed flag for article {article_id}: {e}")
+        
+        context.log.info(f"Updated processed flag for {update_count} articles")
+        
         
         return trends
         
@@ -657,11 +675,28 @@ def get_weekly_clustered_trends(context):
         articles = []
         week_articles = []
         prev_week_articles = []
+
+                # After clustering and processing is complete, update the processed flag
+        context.log.info("Updating processed flag for articles...")
+        update_count = 0
+
+        for article_id in article_ids:
+            try:
+                # Get a reference to the article document
+                article_ref = db.collection('articles').document(article_id)
+                
+                # Update only the processed field to True
+                article_ref.update({'processed': True})
+                update_count += 1
+            except Exception as e:
+                context.log.error(f"Error updating processed flag for article {article_id}: {e}")
+
+        context.log.info(f"Updated processed flag for {update_count} articles")
         
         for doc in query.stream():
             article = doc.to_dict()
             article['id'] = doc.id
-            
+
             # Parse the publishedAt timestamp
             published_at = article.get('publishedAt')
             if published_at:
@@ -1022,6 +1057,21 @@ def get_weekly_clustered_trends(context):
         
         context.log.info(f"Stored {len(trends)} weekly trends as '{week_doc_id}'")
         
+        context.log.info("Updating processed flag for articles...")
+        update_count = 0
+        
+        for article in articles:
+            try:
+                article_id = article.get('id')
+                # Get a reference to the article document
+                article_ref = db.collection('articles').document(article_id)
+                
+                # Update only the processed field to True
+                article_ref.update({'processed': True})
+                update_count += 1
+            except Exception as e:
+                context.log.error(f"Error updating processed flag for article {article_id}: {e}")
+
         return trends
         
     except Exception as e:
@@ -1068,11 +1118,28 @@ def get_monthly_clustered_trends(context):
         articles = []
         month_articles = []
         prev_month_articles = []
+
+        # After clustering and processing is complete, update the processed flag
+        context.log.info("Updating processed flag for articles...")
+        update_count = 0
+
+        for article_id in article_ids:
+            try:
+                # Get a reference to the article document
+                article_ref = db.collection('articles').document(article_id)
+                
+                # Update only the processed field to True
+                article_ref.update({'processed': True})
+                update_count += 1
+            except Exception as e:
+                context.log.error(f"Error updating processed flag for article {article_id}: {e}")
+
+        context.log.info(f"Updated processed flag for {update_count} articles")
         
         for doc in query.stream():
             article = doc.to_dict()
             article['id'] = doc.id
-            
+
             # Parse the publishedAt timestamp
             published_at = article.get('publishedAt')
             if published_at:
@@ -1463,6 +1530,21 @@ def get_monthly_clustered_trends(context):
         
         context.log.info(f"Stored {len(trends)} monthly trends as '{month_doc_id}'")
         
+        context.log.info("Updating processed flag for articles...")
+        update_count = 0
+        
+        for article in articles:
+            try:
+                article_id = article.get('id')
+                # Get a reference to the article document
+                article_ref = db.collection('articles').document(article_id)
+                
+                # Update only the processed field to True
+                article_ref.update({'processed': True})
+                update_count += 1
+            except Exception as e:
+                context.log.error(f"Error updating processed flag for article {article_id}: {e}")
+
         return trends
         
     except Exception as e:
