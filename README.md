@@ -11,5 +11,3 @@ Financial news aggregation using APIs or web scraping
 Sentiment analysis of market-related news
 
 Context-aware market insights using RAG for LLMs
-
-Future stock price prediction using ML models through TA
